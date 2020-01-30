@@ -1,8 +1,6 @@
 # httpsig
 
-`go get github.com/go-fed/httpsig`
-
-Zimpler fork. Signature sets request-target as `[METHOD] [RESOURCE URI PATH]` instead of `[METHOD] [URL]` in upstream
+`go get github.com/Zimpler/httpsig`
 
 Implementation of [HTTP Signatures](https://tools.ietf.org/html/draft-cavage-http-signatures).
 
@@ -19,7 +17,7 @@ signing of hash schemes. Its goals are:
 
 ## How to use
 
-`import "github.com/go-fed/httpsig"`
+`import "github.com/Zimpler/httpsig"`
 
 ### Signing
 
