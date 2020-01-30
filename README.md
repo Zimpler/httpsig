@@ -2,6 +2,8 @@
 
 `go get github.com/go-fed/httpsig`
 
+Zimpler fork. Signature sets request-target as `[METHOD] [RESOURCE URI PATH]` instead of `[METHOD] [URL]` in upstream
+
 Implementation of [HTTP Signatures](https://tools.ietf.org/html/draft-cavage-http-signatures).
 
 Supports many different combinations of MAC, HMAC signing of hash, or RSA
