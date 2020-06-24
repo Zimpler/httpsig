@@ -2,6 +2,8 @@
 
 `go get github.com/Zimpler/httpsig`
 
+NOTE: why a fork? For verifying and locking versions
+
 Implementation of [HTTP Signatures](https://tools.ietf.org/html/draft-cavage-http-signatures).
 
 Supports many different combinations of MAC, HMAC signing of hash, or RSA
