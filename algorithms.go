@@ -2,25 +2,32 @@ package httpsig
 
 import (
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/hmac"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/sha512"
 	"crypto/subtle" // Use should trigger great care
+	"encoding/asn1"
 	"errors"
 	"fmt"
-	"golang.org/x/crypto/blake2b"
-	"golang.org/x/crypto/blake2s"
-	"golang.org/x/crypto/ripemd160"
-	"golang.org/x/crypto/sha3"
 	"hash"
 	"io"
+	"math/big"
 	"strings"
+
+	"golang.org/x/crypto/blake2b"
+	"golang.org/x/crypto/blake2s"
+	"golang.org/x/crypto/ed25519"
+	"golang.org/x/crypto/ripemd160"
+	"golang.org/x/crypto/sha3"
 )
 
 const (
 	hmacPrefix        = "hmac"
 	rsaPrefix         = "rsa"
+	ecdsaPrefix       = "ecdsa"
+	ed25519Prefix     = "ed25519"
 	md4String         = "md4"
 	md5String         = "md5"
 	sha1String        = "sha1"
@@ -210,6 +217,105 @@ func (r *rsaAlgorithm) String() string {
 	return fmt.Sprintf("%s-%s", rsaPrefix, hashToDef[r.kind].name)
 }
 
+var _ signer = &ed25519Algorithm{}
+
+type ed25519Algorithm struct{}
+
+func (r *ed25519Algorithm) Sign(rand io.Reader, p crypto.PrivateKey, sig []byte) ([]byte, error) {
+	ed25519K, ok := p.(ed25519.PrivateKey)
+	if !ok {
+		return nil, errors.New("crypto.PrivateKey is not ed25519.PrivateKey")
+	}
+	return ed25519.Sign(ed25519K, sig), nil
+}
+
+func (r *ed25519Algorithm) Verify(pub crypto.PublicKey, toHash, signature []byte) error {
+	ed25519K, ok := pub.(ed25519.PublicKey)
+	if !ok {
+		return errors.New("crypto.PublicKey is not ed25519.PublicKey")
+	}
+
+	if ed25519.Verify(ed25519K, toHash, signature) {
+		return nil
+	}
+
+	return errors.New("ed25519 verify failed")
+}
+
+func (r *ed25519Algorithm) String() string {
+	return fmt.Sprintf("%s", ed25519Prefix)
+}
+
+var _ signer = &ecdsaAlgorithm{}
+
+type ecdsaAlgorithm struct {
+	hash.Hash
+	kind crypto.Hash
+}
+
+func (r *ecdsaAlgorithm) setSig(b []byte) error {
+	n, err := r.Write(b)
+	if err != nil {
+		r.Reset()
+		return err
+	} else if n != len(b) {
+		r.Reset()
+		return fmt.Errorf("could only write %d of %d bytes of signature to hash", n, len(b))
+	}
+	return nil
+}
+
+type ECDSASignature struct {
+	R, S *big.Int
+}
+
+func (r *ecdsaAlgorithm) Sign(rand io.Reader, p crypto.PrivateKey, sig []byte) ([]byte, error) {
+	defer r.Reset()
+	if err := r.setSig(sig); err != nil {
+		return nil, err
+	}
+	ecdsaK, ok := p.(*ecdsa.PrivateKey)
+	if !ok {
+		return nil, errors.New("crypto.PrivateKey is not *ecdsa.PrivateKey")
+	}
+	R, S, err := ecdsa.Sign(rand, ecdsaK, r.Sum(nil))
+	if err != nil {
+		return nil, err
+	}
+
+	signature := ECDSASignature{R: R, S: S}
+	bytes, err := asn1.Marshal(signature)
+
+	return bytes, err
+}
+
+func (r *ecdsaAlgorithm) Verify(pub crypto.PublicKey, toHash, signature []byte) error {
+	defer r.Reset()
+	ecdsaK, ok := pub.(*ecdsa.PublicKey)
+	if !ok {
+		return errors.New("crypto.PublicKey is not *ecdsa.PublicKey")
+	}
+	if err := r.setSig(toHash); err != nil {
+		return err
+	}
+
+	sig := new(ECDSASignature)
+	_, err := asn1.Unmarshal(signature, sig)
+	if err != nil {
+		return err
+	}
+
+	if ecdsa.Verify(ecdsaK, r.Sum(nil), sig.R, sig.S) {
+		return nil
+	} else {
+		return errors.New("Invalid signature")
+	}
+}
+
+func (r *ecdsaAlgorithm) String() string {
+	return fmt.Sprintf("%s-%s", ecdsaPrefix, hashToDef[r.kind].name)
+}
+
 var _ macer = &blakeMacAlgorithm{}
 
 type blakeMacAlgorithm struct {
@@ -315,13 +421,32 @@ func newAlgorithm(algo string, key []byte) (hash.Hash, crypto.Hash, error) {
 // signerFromString is an internally public method constructor
 func signerFromString(s string) (signer, error) {
 	s = strings.ToLower(s)
-	if !strings.HasPrefix(s, rsaPrefix) {
+	isEcdsa := false
+	isEd25519 := false
+	var algo string = ""
+	if strings.HasPrefix(s, ecdsaPrefix) {
+		algo = strings.TrimPrefix(s, ecdsaPrefix+"-")
+		isEcdsa = true
+	} else if strings.HasPrefix(s, rsaPrefix) {
+		algo = strings.TrimPrefix(s, rsaPrefix+"-")
+	} else if strings.HasPrefix(s, ed25519Prefix) {
+		isEd25519 = true
+		algo = "sha512"
+	} else {
 		return nil, fmt.Errorf("no signer matching %q", s)
 	}
-	algo := strings.TrimPrefix(s, rsaPrefix+"-")
 	hash, cHash, err := newAlgorithm(algo, nil)
 	if err != nil {
 		return nil, err
+	}
+	if isEd25519 {
+		return &ed25519Algorithm{}, nil
+	}
+	if isEcdsa {
+		return &ecdsaAlgorithm{
+			Hash: hash,
+			kind: cHash,
+		}, nil
 	}
 	return &rsaAlgorithm{
 		Hash: hash,
