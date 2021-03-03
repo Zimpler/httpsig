@@ -4,6 +4,8 @@
 
 NOTE: why a fork? For verifying and locking versions
 
+> HTTP Signatures made simple
+
 Implementation of [HTTP Signatures](https://tools.ietf.org/html/draft-cavage-http-signatures).
 
 Supports many different combinations of MAC, HMAC signing of hash, or RSA
@@ -94,3 +96,16 @@ func verify(r *http.Request) error {
 `Verifier`s are not safe for concurrent use by goroutines, but since they are
 constructed on a per-request or per-response basis it should not be a common
 restriction.
+
+[Build-Status-Image]: https://travis-ci.org/go-fed/httpsig.svg?branch=master
+[Build-Status-Url]: https://travis-ci.org/go-fed/httpsig
+[Go-Reference-Image]: https://pkg.go.dev/badge/github.com/go-fed/httpsig
+[Go-Reference-Url]: https://pkg.go.dev/github.com/go-fed/httpsig
+[Go-Report-Card-Image]: https://goreportcard.com/badge/github.com/go-fed/httpsig
+[Go-Report-Card-Url]: https://goreportcard.com/report/github.com/go-fed/httpsig
+[License-Image]: https://img.shields.io/github/license/go-fed/httpsig?color=blue
+[License-Url]: https://opensource.org/licenses/BSD-3-Clause
+[Chat-Image]: https://img.shields.io/matrix/go-fed:feneas.org?server_fqdn=matrix.org
+[Chat-Url]: https://matrix.to/#/!BLOSvIyKTDLIVjRKSc:feneas.org?via=feneas.org&via=matrix.org
+[OpenCollective-Image]: https://img.shields.io/opencollective/backers/go-fed-activitypub-labs
+[OpenCollective-Url]: https://opencollective.com/go-fed-activitypub-labs
